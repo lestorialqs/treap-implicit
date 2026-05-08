@@ -3,20 +3,20 @@
 //
 #include <iostream>
 #include <vector>
-
+#include <climits>
 using namespace std;
 
 struct Node {
-    int data;
+    long long data;
     int prio;
     Node *left;
     Node *right;
     int tam;
-    int lazy_add;
+    long long lazy_add;
     bool lazy_rev;
-    int mn;
+    long long mn;
 
-    Node(int data) {
+    Node(long long data) {
         this->data = data;
         this->prio = rand() % 100000 + 1;
         this->left = nullptr;
@@ -33,32 +33,33 @@ struct Node {
 
 
 };
+void apply_add(Node* node, long long val) {
+    if (node == nullptr) return;
+    node->data += val;
+    node->mn += val;
+    node->lazy_add += val;
+}
+
+long long get_min(Node* node) {
+    if (node == nullptr) return LLONG_MAX;
+    return node->mn;
+}
+void apply_rev(Node* node) {
+    if (node == nullptr) return;
+    swap(node->left, node->right);
+    node->lazy_rev = !node->lazy_rev;
+}
+
 void push(Node* node) {
     if (node == nullptr) return;
-
     if (node->lazy_rev) {
-        swap(node->left, node->right);
-        if (node->left != nullptr) {
-            node->left->lazy_rev = !node->left->lazy_rev;
-        }
-        if (node->right != nullptr) {
-            node->right->lazy_rev = !node->right->lazy_rev;
-        }
+        apply_rev(node->left);
+        apply_rev(node->right);
         node->lazy_rev = false;
     }
-
     if (node->lazy_add != 0) {
-        int val = node->lazy_add;
-        node->data += val;
-        node->mn += val;
-        if (node->left != nullptr) {
-            node->left->lazy_add += val;
-            node->left->mn += val;
-        }
-        if (node->right != nullptr) {
-            node->right->lazy_add += val;
-            node->right->mn += val;
-        }
+        apply_add(node->left, node->lazy_add);
+        apply_add(node->right, node->lazy_add);
         node->lazy_add = 0;
     }
 }
@@ -77,10 +78,7 @@ void print_all(Node* root) {
 
 
 };
-int get_min(Node* node) {
-    if (node == nullptr) return INT_MAX;
-    return node->mn;
-}
+
 int get_size(Node* node) {
     if (node == nullptr) {
         return 0;
@@ -150,14 +148,10 @@ void split(Node *root, int k, Node*& left, Node*& right) {
 
 }
 Node* merge_1(Node* p1, Node* p2) {
-    push(p1); // sumamos lazy
-    push(p2); // suammos lazy
-    if (p1 == nullptr) {
-        return p2;
-    }
-    if (p2 == nullptr) {
-        return p1;
-    }
+    if (p1 == nullptr) return p2;
+    if (p2 == nullptr) return p1;
+    push(p1);
+    push(p2);
     // para mergear vamos a unir de acuerdo a prioridad
     if (p1->prio > p2->prio) {
         p1->right = merge_1(p1->right, p2);
@@ -195,15 +189,14 @@ struct Query {
 
     long long x = 0;
 };
-void A(int l, int r, int x, Node*& root) {
+void A(int l, int r, long long x, Node*& root) {
     Node* left = nullptr;
     Node* right = nullptr;
     Node* mid = nullptr;
     split(root, l - 1, left, right);
     split(right, r - l + 1, mid, right);
     if (mid != nullptr) {
-        mid->lazy_add += x;
-        mid->mn += x;
+        apply_add(mid, x);
     }
     root = merge_1(left, merge_1(mid, right));
 }
@@ -215,7 +208,7 @@ void R(int l, int r, Node*& root) {
     split(root, l - 1, left, right);
     split(right, r - l + 1, mid, right);
     if (mid != nullptr) {
-        mid->lazy_rev = !mid->lazy_rev;
+        apply_rev(mid);
     }
     root = merge_1(left, merge_1(mid, right));
 }
@@ -234,12 +227,13 @@ void O(int l, int r, int k, Node*& root) {
     split(mid, len - k, mid_left, mid_right);
     root = merge_1(left, merge_1(merge_1(mid_right, mid_left), right));
 }
-
-void I(int k, int x, Node*& root) {
+void I(int k, long long x, Node*& root) {
+    Node* left = nullptr;
+    Node* right = nullptr;
     Node* node = new Node(x);
-    root = insert(k, root, node);
+    split(root, k, left, right);
+    root = merge_1(left, merge_1(node, right));
 }
-
 void E(int k, Node*& root) {
     Node* left = nullptr;
     Node* right = nullptr;
@@ -250,13 +244,13 @@ void E(int k, Node*& root) {
     root = merge_1(left, right);
 }
 
-int M(int l, int r, Node*& root) {
+long long M(int l, int r, Node*& root) {
     Node* left = nullptr;
     Node* right = nullptr;
     Node* mid = nullptr;
     split(root, l - 1, left, right);
     split(right, r - l + 1, mid, right);
-    int resultado = get_min(mid);
+    long long resultado = get_min(mid);
     root = merge_1(left, merge_1(mid, right));
     return resultado;
 }
@@ -266,7 +260,7 @@ int main() {
     int n, q;
     cin >> n >> q;
 
-    vector<int> a(n);
+    vector<long long> a(n);
 
     for (int i = 0; i < n; i++) {
         cin >> a[i];
@@ -298,20 +292,19 @@ int main() {
     Node* root = nullptr;
     for (int i = 0; i < n; i++) {
         Node* node = new Node(a[i]);
-        root = insert(i, root, node);
-        print_all(root);
+        root = merge_1(root, node);
     }
 
     for (int i = 0; i < q; i++) {
         Query& qr = queries[i];
         if (qr.type == 'A') {
-            A(qr.l, qr.r, (int)qr.x, root);
+            A(qr.l, qr.r, qr.x, root);
         } else if (qr.type == 'R') {
             R(qr.l, qr.r, root);
         } else if (qr.type == 'O') {
             O(qr.l, qr.r, qr.k, root);
         } else if (qr.type == 'I') {
-            I(qr.k, (int)qr.x, root);
+            I(qr.k, qr.x, root);
         } else if (qr.type == 'E') {
             E(qr.k, root);
         } else if (qr.type == 'M') {
@@ -321,6 +314,5 @@ int main() {
 
     return 0;
 
-    return 0;
 }
 
